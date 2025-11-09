@@ -1,0 +1,68 @@
+<!doctype html>
+<body>
+<div class="wrap">
+<h1>Auto-Redirect Launcher</h1>
+<p class="muted">PWAを開いたら、設定が<strong>ON</strong>のときに指定URLへ自動遷移します。設定は端末に保存されます（初期はOFF）。<br>※ クエリ <code>?no_redirect=1</code> で一時的に自動遷移を無効化できます。</p>
+
+
+<div class="card" role="region" aria-label="設定">
+<label class="switch" for="toggle">
+<input id="toggle" type="checkbox" />
+<span>自動遷移を有効にする</span>
+</label>
+
+
+<label for="targetUrl">遷移先URL</label>
+<input id="targetUrl" type="url" inputmode="url" placeholder="https://example.com" autocomplete="url" />
+
+
+<div class="row">
+<div>
+<label for="delaySec">遅延秒数（0で即時）</label>
+<input id="delaySec" type="number" min="0" max="30" step="1" value="0" />
+</div>
+<div>
+<label for="startInSameTab">同一タブで開く</label>
+<select id="startInSameTab">
+<option value="yes" selected>はい（location.href）</option>
+<option value="no">いいえ（window.open）</option>
+</select>
+</div>
+</div>
+
+
+<div class="btns">
+<button id="saveBtn" class="primary">保存</button>
+<button id="openBtn">今すぐ開く</button>
+<button id="resetBtn" class="danger">初期化</button>
+</div>
+<div id="status" class="info" aria-live="polite"></div>
+</div>
+
+
+<p class="info">このアプリはオフライン対応のPWAです。ホーム画面に追加すると全画面（スタンドアロン）で起動できます。</p>
+</div>
+
+
+<!-- 自動遷移カウントダウン -->
+<div id="overlay" class="overlay" aria-hidden="true">
+<div class="panel">
+<div class="big">自動で開きます…</div>
+<div class="mono" id="countdown">3</div>
+<div class="btns" style="justify-content:center; margin-top:10px;">
+<button id="cancelBtn">キャンセル</button>
+</div>
+</div>
+</div>
+
+
+<script type="module" src="./app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+window.addEventListener('load', () => {
+navigator.serviceWorker.register('./service-worker.js').catch(console.error);
+});
+}
+</script>
+</body>
+</html>
