@@ -1,83 +1,102 @@
-// app.js
-const cancelBtn = document.getElementById('cancelBtn');
-let remain = seconds;
-let canceled = false;
+// 固定の遷移先URL
+const TARGET_URL = "https://usen.oshireq.com/song/6299592";
 
+// ストレージキー
+const STORAGE_KEY = "autoRedirectEnabled";
 
-overlay.classList.add('show');
-overlay.setAttribute('aria-hidden', 'false');
-label.textContent = String(remain);
+// 多少の猶予時間（自動遷移ON時にキャンセルできるように）
+const REDIRECT_DELAY_MS = 1200;
 
+let redirectTimer = null;
 
-const tick = () => {
-if (canceled) return;
-remain -= 1;
-if (remain <= 0) {
-openTarget(url, sameTab);
-} else {
-label.textContent = String(remain);
-setTimeout(tick, 1000);
-}
-};
+const $ = (sel) => document.querySelector(sel);
 
-
-const timer = setTimeout(tick, 1000);
-
-
-cancelBtn.onclick = () => {
-canceled = true;
-clearTimeout(timer);
-overlay.classList.remove('show');
-overlay.setAttribute('aria-hidden', 'true');
-setStatus('自動遷移をキャンセルしました。');
-};
+function isStandalone() {
+  // PWA表示判定（iOS含む）
+  return window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
 }
 
-
-// 初期化
-window.addEventListener('DOMContentLoaded', () => {
-const settings = loadSettings();
-applyUI(settings);
-
-
-// UIイベント
-document.getElementById('saveBtn').addEventListener('click', () => {
-const s = readUI();
-if (!/^https?:\/\//i.test(s.url)) {
-setStatus('URLは http(s):// で始まる必要があります。');
-return;
+function readSetting() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
 }
-saveSettings(s);
-setStatus('保存しました。');
-});
 
-
-document.getElementById('openBtn').addEventListener('click', () => {
-const s = readUI();
-if (!/^https?:\/\//i.test(s.url)) {
-setStatus('URLは http(s):// で始まる必要があります。');
-return;
+function writeSetting(val) {
+  try {
+    localStorage.setItem(STORAGE_KEY, val ? "true" : "false");
+  } catch {}
 }
-openTarget(s.url, s.sameTab);
-});
 
-
-document.getElementById('resetBtn').addEventListener('click', () => {
-saveSettings({ ...DEFAULTS });
-applyUI({ ...DEFAULTS });
-setStatus('初期化しました（自動遷移：OFF、既定URL、遅延0秒、同一タブ）。');
-});
-
-
-// 起動時の自動遷移（?no_redirect=1 で抑止）
-const noRedirect = getQueryFlag('no_redirect') === '1';
-if (!noRedirect && settings.enabled) {
-if (!/^https?:\/\//i.test(settings.url)) return; // 不正URLは無視
-
-
-// PWAとしての起動かどうかに関わらず動作。必要なら isStandalone() で分岐可能
-// 例: if (isStandalone()) { ... }
-const delay = Math.max(0, parseInt(settings.delaySec, 10) || 0);
-showOverlayAndRedirect(delay, settings.url, settings.sameTab);
+function updateUI(enabled) {
+  $("#autoToggle").checked = enabled;
+  $("#statePill").textContent = enabled ? "ON" : "OFF";
+  $("#statePill").style.background = enabled ? "#22c55e33" : "#0ea5e933";
+  $("#statePill").style.color = enabled ? "#166534" : "#0369a1";
 }
+
+function openTarget() {
+  // PWAでもブラウザでもそのまま同一タブ遷移（戻る必要がなければ replace 推奨）
+  location.replace(TARGET_URL);
+}
+
+function scheduleAutoRedirect() {
+  // キャンセル用ボタンの表示
+  $("#cancelBtn").style.display = "inline-block";
+  const info = $("#info");
+  let remaining = Math.ceil(REDIRECT_DELAY_MS / 100) / 10; // 秒表示
+  info.textContent = `自動遷移まで約 ${remaining.toFixed(1)} 秒…`;
+  const startedAt = Date.now();
+
+  redirectTimer = setInterval(() => {
+    const elapsed = Date.now() - startedAt;
+    const left = Math.max(0, REDIRECT_DELAY_MS - elapsed);
+    const sec = Math.ceil(left / 100) / 10;
+    info.textContent = `自動遷移まで約 ${sec.toFixed(1)} 秒…`;
+    if (left <= 0) {
+      clearInterval(redirectTimer);
+      redirectTimer = null;
+      info.textContent = "遷移中…";
+      openTarget();
+    }
+  }, 100);
+}
+
+function cancelAutoRedirect() {
+  if (redirectTimer) {
+    clearInterval(redirectTimer);
+    redirectTimer = null;
+    $("#info").textContent = "自動遷移を中止しました。";
+    $("#cancelBtn").style.display = "none";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // 画面初期化
+  $("#targetUrlText").textContent = TARGET_URL;
+
+  const enabled = readSetting();
+  updateUI(enabled);
+
+  // クリック操作
+  $("#openBtn").addEventListener("click", openTarget);
+
+  $("#autoToggle").addEventListener("change", (e) => {
+    const on = e.currentTarget.checked;
+    writeSetting(on);
+    updateUI(on);
+    $("#info").textContent = on ? "次回起動時から自動遷移します。" : "自動遷移は無効です。";
+  });
+
+  $("#cancelBtn").addEventListener("click", cancelAutoRedirect);
+
+  // 起動時の自動遷移
+  if (enabled) {
+    // PWAかどうかは問わず、ユーザーの設定を優先
+    scheduleAutoRedirect();
+  } else {
+    $("#info").textContent = "自動遷移はOFFです。必要に応じて「今すぐ開く」を押してください。";
+  }
 });
